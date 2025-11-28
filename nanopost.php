@@ -2,7 +2,7 @@
 /**
  * Plugin Name: nanoPost
  * Description: Zero-config email delivery for WordPress
- * Version: 0.1.0-poc
+ * Version: 0.1.1
  * Author: nanoPost
  */
 
