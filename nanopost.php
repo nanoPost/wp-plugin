@@ -260,26 +260,17 @@ add_filter('pre_wp_mail', function ($null, $atts) {
 
     if (is_wp_error($response)) {
         error_log('nanoPost: API error - ' . $response->get_error_message());
-        return null; // Fall back to default wp_mail
+        return false;
     }
 
-    $status_code = wp_remote_retrieve_response_code($response);
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if (!empty($body['success'])) {
-        return true; // Email sent successfully
+        return true;
     }
 
-    // Log the error
     error_log('nanoPost: API returned error - ' . json_encode($body));
-
-    // If API explicitly rejected (auth/recipient issues), don't fall back
-    // 401 = invalid token, 403 = recipient not allowed
-    if ($status_code === 401 || $status_code === 403) {
-        return false; // Fail without fallback
-    }
-
-    return null; // Other errors: fall back to default wp_mail
+    return false;
 }, 10, 2);
 
 /**
