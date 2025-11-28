@@ -2,7 +2,7 @@
 /**
  * Plugin Name: nanoPost
  * Description: Zero-config email delivery for WordPress
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: nanoPost
  */
 
@@ -22,6 +22,10 @@ add_action('rest_api_init', function () {
             if (empty($challenge)) {
                 return new WP_Error('missing_challenge', 'Challenge required', ['status' => 400]);
             }
+
+            // Prevent caching of verification responses
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
 
             // Echo back the challenge to prove plugin is installed
             return [
