@@ -11,6 +11,15 @@ defined('ABSPATH') || exit;
 define('NANOPOST_API_BASE', 'https://api-master-ja5zao.laravel.cloud/api');
 
 /**
+ * Debug logging - only logs when debug mode is enabled
+ */
+function nanopost_debug($message) {
+    if (get_option('nanopost_debug_mode', false)) {
+        error_log('nanoPost: ' . $message);
+    }
+}
+
+/**
  * REST API endpoints for verification
  */
 add_action('rest_api_init', function () {
@@ -46,41 +55,52 @@ add_action('rest_api_init', function () {
             $signature = $request->get_param('signature');
             $site_secret = get_option('nanopost_site_secret');
 
+            nanopost_debug("verify-recipient called for: {$email}");
+
             // Prevent caching
             header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
             header('Pragma: no-cache');
 
             // Verify signature exists
             if (empty($signature) || empty($timestamp) || empty($site_secret)) {
+                nanopost_debug("verify-recipient: missing signature, timestamp, or site_secret");
                 return new WP_Error('forbidden', 'Forbidden', ['status' => 403]);
             }
 
             // Check timestamp (within 5 minutes)
             if (abs(time() - intval($timestamp)) > 300) {
+                nanopost_debug("verify-recipient: timestamp expired (diff=" . abs(time() - intval($timestamp)) . "s)");
                 return new WP_Error('forbidden', 'Forbidden', ['status' => 403]);
             }
 
             // Verify HMAC signature
             $expected = hash_hmac('sha256', $email . $timestamp, $site_secret);
             if (!hash_equals($expected, $signature)) {
+                nanopost_debug("verify-recipient: HMAC signature mismatch");
                 return new WP_Error('forbidden', 'Forbidden', ['status' => 403]);
             }
 
+            nanopost_debug("verify-recipient: signature valid, checking recipient");
+
             // Signature valid - now check recipient
             if (empty($email) || !is_email($email)) {
+                nanopost_debug("verify-recipient: invalid email format");
                 return ['allowed' => false, 'reason' => 'Invalid email'];
             }
 
             // Check if email belongs to a WP user
             if (email_exists($email)) {
+                nanopost_debug("verify-recipient: {$email} is a WordPress user - ALLOWED");
                 return ['allowed' => true, 'reason' => 'WordPress user'];
             }
 
             // Check if it's the admin email
             if ($email === get_option('admin_email')) {
+                nanopost_debug("verify-recipient: {$email} is admin email - ALLOWED");
                 return ['allowed' => true, 'reason' => 'Admin email'];
             }
 
+            nanopost_debug("verify-recipient: {$email} not a WordPress user - DENIED");
             return ['allowed' => false, 'reason' => 'Not a WordPress user'];
         },
         'permission_callback' => '__return_true',
@@ -110,31 +130,43 @@ add_action('init', function () {
         return;
     }
 
+    nanopost_debug("Auto-registration triggered");
+
     // Clear the flag first to prevent repeated attempts
     delete_option('nanopost_needs_registration');
 
     // Ensure site_secret exists
     if (!get_option('nanopost_site_secret')) {
         update_option('nanopost_site_secret', bin2hex(random_bytes(32)));
+        nanopost_debug("Generated new site_secret");
     }
+
+    $domain = site_url();
+    nanopost_debug("Registering domain: {$domain}");
 
     $response = wp_remote_post(NANOPOST_API_BASE . '/register', [
         'timeout' => 30,
         'headers' => ['Content-Type' => 'application/json'],
         'body' => json_encode([
-            'domain' => site_url(),
+            'domain' => $domain,
             'admin_email' => get_option('admin_email'),
             'site_secret' => get_option('nanopost_site_secret'),
         ]),
     ]);
 
-    if (!is_wp_error($response)) {
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        if (!empty($body['site_token'])) {
-            update_option('nanopost_site_token', $body['site_token']);
-            update_option('nanopost_site_id', $body['site_id']);
-            update_option('nanopost_api_url', NANOPOST_API_BASE . '/mail');
-        }
+    if (is_wp_error($response)) {
+        nanopost_debug("Registration failed: " . $response->get_error_message());
+        return;
+    }
+
+    $body = json_decode(wp_remote_retrieve_body($response), true);
+    if (!empty($body['site_token'])) {
+        update_option('nanopost_site_token', $body['site_token']);
+        update_option('nanopost_site_id', $body['site_id']);
+        update_option('nanopost_api_url', NANOPOST_API_BASE . '/mail');
+        nanopost_debug("Registration successful: site_id={$body['site_id']}");
+    } else {
+        nanopost_debug("Registration failed: " . json_encode($body));
     }
 });
 
@@ -206,23 +238,34 @@ add_filter('pre_wp_mail', function ($null, $atts) {
     $api_url = get_option('nanopost_api_url', 'https://api-master-ja5zao.laravel.cloud/api/mail');
     $site_token = get_option('nanopost_site_token', '');
 
-    if (empty($site_token)) {
-        error_log('nanoPost: No site_token configured');
-        return null; // Fall back to default wp_mail
-    }
-
     // Handle recipient (can be string or array)
     $to = is_array($atts['to']) ? implode(',', $atts['to']) : $atts['to'];
+    $subject = $atts['subject'] ?? '(no subject)';
+
+    nanopost_debug("wp_mail intercepted: to={$to}, subject={$subject}");
+
+    if (empty($site_token)) {
+        error_log('nanoPost: No site_token configured - cannot send');
+        return false;
+    }
 
     // Parse headers
     $headers = nanopost_parse_headers($atts['headers'] ?? []);
+    nanopost_debug("Parsed headers: content_type={$headers['content_type']}, from={$headers['from']}, reply_to={$headers['reply_to']}");
+
+    if (!empty($headers['cc'])) {
+        nanopost_debug("CC recipients: " . implode(', ', $headers['cc']));
+    }
+    if (!empty($headers['bcc'])) {
+        nanopost_debug("BCC recipients: " . implode(', ', $headers['bcc']));
+    }
 
     // Build payload
     $payload = [
         'site_token' => $site_token,
         'site_url' => site_url(),
         'to' => $to,
-        'subject' => $atts['subject'] ?? '(no subject)',
+        'subject' => $subject,
         'message' => $atts['message'] ?? '',
         'content_type' => $headers['content_type'],
         'from_name' => get_bloginfo('name'),
@@ -249,6 +292,8 @@ add_filter('pre_wp_mail', function ($null, $atts) {
         $payload['bcc'] = implode(',', $headers['bcc']);
     }
 
+    nanopost_debug("Sending to API: {$api_url}");
+
     $response = wp_remote_post($api_url, [
         'timeout' => 30,
         'headers' => [
@@ -260,16 +305,22 @@ add_filter('pre_wp_mail', function ($null, $atts) {
 
     if (is_wp_error($response)) {
         error_log('nanoPost: API error - ' . $response->get_error_message());
+        nanopost_debug("API request failed: " . $response->get_error_message());
         return false;
     }
 
+    $status_code = wp_remote_retrieve_response_code($response);
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
+    nanopost_debug("API response: HTTP {$status_code}");
+
     if (!empty($body['success'])) {
+        nanopost_debug("Email sent successfully");
         return true;
     }
 
     error_log('nanoPost: API returned error - ' . json_encode($body));
+    nanopost_debug("API rejected: " . json_encode($body));
     return false;
 }, 10, 2);
 
@@ -333,6 +384,13 @@ function nanopost_settings_page() {
                 echo '<div class="notice notice-error"><p>Failed to send test email. Check error log.</p></div>';
             }
         }
+
+        // Handle debug mode toggle
+        if (isset($_POST['nanopost_save_settings'])) {
+            $debug_mode = isset($_POST['nanopost_debug_mode']) ? true : false;
+            update_option('nanopost_debug_mode', $debug_mode);
+            echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
+        }
     }
 
     $site_token = get_option('nanopost_site_token', '');
@@ -387,6 +445,29 @@ function nanopost_settings_page() {
                     </td>
                 </tr>
             </table>
+        </form>
+
+        <h2>Debug Settings</h2>
+        <form method="post">
+            <?php wp_nonce_field('nanopost_settings'); ?>
+            <table class="form-table">
+                <tr>
+                    <th><label for="nanopost_debug_mode">Debug Mode</label></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" id="nanopost_debug_mode" name="nanopost_debug_mode"
+                                   <?php checked(get_option('nanopost_debug_mode', false)); ?>>
+                            Enable debug logging
+                        </label>
+                        <p class="description">
+                            Writes detailed trace messages to the PHP error log. Useful for troubleshooting.
+                        </p>
+                    </td>
+                </tr>
+            </table>
+            <p class="submit">
+                <input type="submit" name="nanopost_save_settings" class="button button-primary" value="Save Settings">
+            </p>
         </form>
     </div>
     <?php
