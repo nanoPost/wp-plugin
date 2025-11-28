@@ -2,7 +2,7 @@
 /**
  * Plugin Name: nanoPost
  * Description: Zero-config email delivery for WordPress
- * Version: 0.1.1
+ * Version: 0.1.2
  * Author: nanoPost
  */
 
@@ -33,7 +33,7 @@ add_filter('pre_wp_mail', function ($null, $atts) {
             'site_token' => $site_token,
             'site_url' => site_url(),
             'to' => $to,
-            'subject' => $atts['subject'] ?? '(no subject)',
+            'subject' => ($atts['subject'] ?? '(no subject)') . ' [' . substr(md5(time()), 0, 6) . ']',
             'message' => $atts['message'] ?? '',
             'from_name' => get_bloginfo('name'),
         ]),
