@@ -2,13 +2,36 @@
 /**
  * Plugin Name: nanoPost
  * Description: Zero-config email delivery for WordPress
- * Version: 0.2.0
+ * Version: 0.3.0
  * Author: nanoPost
  */
 
 defined('ABSPATH') || exit;
 
 define('NANOPOST_API_BASE', 'https://api-master-ja5zao.laravel.cloud/api');
+
+/**
+ * REST API endpoint for domain verification
+ */
+add_action('rest_api_init', function () {
+    register_rest_route('nanopost/v1', '/verify', [
+        'methods' => 'GET',
+        'callback' => function ($request) {
+            $challenge = $request->get_param('challenge');
+
+            if (empty($challenge)) {
+                return new WP_Error('missing_challenge', 'Challenge required', ['status' => 400]);
+            }
+
+            // Echo back the challenge to prove plugin is installed
+            return [
+                'challenge' => $challenge,
+                'site_url' => site_url(),
+            ];
+        },
+        'permission_callback' => '__return_true',
+    ]);
+});
 
 /**
  * Auto-register with nanoPost API on plugin activation
