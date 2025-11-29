@@ -340,7 +340,10 @@ add_filter('pre_wp_mail', function ($null, $atts) {
     nanopost_debug("Response HTTP status: {$status_code}");
     nanopost_debug("Response body: {$raw_body}");
 
-    if (!empty($body['success'])) {
+    // Accept both "success" (sync) and "queued" (async) responses
+    if (!empty($body['success']) || !empty($body['queued'])) {
+        $email_log_id = $body['email_log_id'] ?? null;
+        nanopost_debug("Email log ID: " . ($email_log_id ?: 'n/a'));
         nanopost_debug("=== MAIL SEND SUCCESS ===");
         return true;
     }
