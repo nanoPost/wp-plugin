@@ -65,6 +65,7 @@ Yes! The free tier includes generous email limits suitable for most small sites.
 
 = 0.7.0 =
 * Added welcome banner on activation
+* Added --verify flag for round-trip API verification
 * Improved admin page UX
 
 = 0.6.0 =
