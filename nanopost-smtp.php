@@ -13,8 +13,12 @@ defined('ABSPATH') || exit;
 
 // Plugin constants
 define('NANOPOST_VERSION', '0.6.0');
-define('NANOPOST_API_BASE', 'https://api-master-ja5zao.laravel.cloud/api');
 define('NANOPOST_PLUGIN_DIR', __DIR__);
+
+// API base - can be overridden in wp-config.php for staging/dev
+if (!defined('NANOPOST_API_BASE')) {
+    define('NANOPOST_API_BASE', 'https://api.nanopo.st/api');
+}
 
 // Load core functionality
 require_once __DIR__ . '/includes/rest-api.php';
