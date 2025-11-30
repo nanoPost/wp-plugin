@@ -18,6 +18,11 @@ function nanopost_activate() {
     if (!get_option('nanopost_site_token')) {
         update_option('nanopost_needs_registration', true);
     }
+
+    // Flag for redirect to welcome page (only on fresh install)
+    if (!get_option('nanopost_site_token')) {
+        add_option('nanopost_activation_redirect', true);
+    }
 }
 
 /**

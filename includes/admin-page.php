@@ -6,6 +6,25 @@
 defined('ABSPATH') || exit;
 
 /**
+ * Redirect to welcome page after activation.
+ */
+add_action('admin_init', function () {
+    if (!get_option('nanopost_activation_redirect', false)) {
+        return;
+    }
+
+    delete_option('nanopost_activation_redirect');
+
+    // Don't redirect on bulk activate or network admin
+    if (isset($_GET['activate-multi']) || is_network_admin()) {
+        return;
+    }
+
+    wp_safe_redirect(admin_url('options-general.php?page=nanopost&welcome=1'));
+    exit;
+}, 1); // Priority 1 to run before other admin_init hooks
+
+/**
  * Register settings page menu item.
  */
 add_action('admin_menu', function () {
@@ -119,9 +138,27 @@ function nanopost_settings_page() {
     $site_token = get_option('nanopost_site_token', '');
     $site_id = get_option('nanopost_site_id', '');
     $registered_domain = get_option('nanopost_registered_domain', '');
+    $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
     ?>
     <div class="wrap">
         <h1>nanoPost Settings</h1>
+
+        <?php if ($is_welcome && $site_token): ?>
+        <div class="notice notice-success" style="padding: 15px; border-left-color: #00a32a;">
+            <h2 style="margin-top: 0;">Welcome to nanoPost!</h2>
+            <p>Your site is now connected and ready to send emails. All WordPress system emails will automatically be delivered through nanoPost.</p>
+            <p>
+                <strong>Sending domain:</strong> <code><?php echo esc_html($registered_domain ?: site_url()); ?></code><br>
+                <strong>Site ID:</strong> <code><?php echo esc_html($site_id); ?></code>
+            </p>
+            <p>Try sending a test email below to verify everything is working.</p>
+        </div>
+        <?php elseif ($is_welcome && !$site_token): ?>
+        <div class="notice notice-warning" style="padding: 15px;">
+            <h2 style="margin-top: 0;">Almost there!</h2>
+            <p>Registration is still in progress. If this persists, click "Register Now" below.</p>
+        </div>
+        <?php endif; ?>
 
         <h2>Registration Status</h2>
         <form method="post">
