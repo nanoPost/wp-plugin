@@ -216,21 +216,11 @@ function nanopost_settings_page() {
 function nanopost_handle_settings_form() {
     // Handle re-registration request
     if (isset($_POST['nanopost_register'])) {
-        $old_site_id = get_option('nanopost_site_id', '(none)');
-        $old_site_token = get_option('nanopost_site_token', '(none)');
-
-        nanopost_debug("=== REGISTRATION START ===");
-        nanopost_debug("Previous site_id: {$old_site_id}");
-        nanopost_debug("Previous site_token: " . substr($old_site_token, 0, 10) . "...");
-
         $result = nanopost_register_site(true);
 
         if ($result['success']) {
-            nanopost_debug("Updated flag: " . ($result['data']['updated'] ?? 'false'));
-            nanopost_debug("=== REGISTRATION SUCCESS ===");
             echo '<div class="notice notice-success"><p>Registered successfully!</p></div>';
         } else {
-            nanopost_debug("=== REGISTRATION FAILED ===");
             echo '<div class="notice notice-error"><p>Registration failed: ' . esc_html($result['error']) . '</p></div>';
         }
     }
@@ -249,8 +239,7 @@ function nanopost_handle_settings_form() {
 
     // Handle debug mode toggle
     if (isset($_POST['nanopost_save_settings'])) {
-        $debug_mode = isset($_POST['nanopost_debug_mode']) ? true : false;
-        update_option('nanopost_debug_mode', $debug_mode);
+        update_option('nanopost_debug_mode', !empty($_POST['nanopost_debug_mode']));
         echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
     }
 }
