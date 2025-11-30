@@ -48,11 +48,16 @@ function nanopost_debug($message) {
 /**
  * Convert domain URL to slug for email local part.
  *
+ * Examples:
+ *   https://example.com        → example-com
+ *   https://example.com/site1/ → example-com-site1 (multisite subdirectory)
+ *
  * @param string $url The site URL.
  * @return string The slugified domain.
  */
 function nanopost_domain_to_slug($url) {
     $host = parse_url($url, PHP_URL_HOST);
+    $path = parse_url($url, PHP_URL_PATH);
 
     if (!$host) {
         $host = preg_replace('#^https?://#', '', $url);
@@ -70,6 +75,14 @@ function nanopost_domain_to_slug($url) {
         $host = idn_to_ascii($host) ?: $host;
     }
     $slug = str_replace('.', '-', $host);
+
+    // Include path for multisite subdirectory installs
+    if ($path && $path !== '/') {
+        $path = trim($path, '/');
+        $path = str_replace('/', '-', $path);
+        $slug .= '-' . $path;
+    }
+
     $slug = preg_replace('/[^a-z0-9\-]/', '', $slug);
 
     return trim($slug, '-') ?: 'noreply';
