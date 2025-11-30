@@ -156,17 +156,7 @@ Yes! The free tier includes generous email limits suitable for most small sites.
 - Added `--verify` flag for round-trip API verification
 - Improved admin page UX
 
-### 0.6.0
-- Added domain change detection
-- Added debug mode toggle
-- WP-CLI commands for site management
-
-### 0.5.0
-- Initial release
-- Automatic site registration
-- wp_mail replacement
-- Domain verification support
-- WP-CLI integration
+For older versions, see [changelog.txt](changelog.txt).
 
 ## License
 
